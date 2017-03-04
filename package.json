@@ -1,0 +1,36 @@
+{
+  "name": "pivot-account-service",
+  "version": "0.0.1",
+  "description": "A user account service",
+  "main": "lib/index.js",
+  "typings": "lib/index",
+  "scripts": {
+    "compile": "tsc",
+    "prepublish": "npm run compile"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pivotjs/account-service.git"
+  },
+  "keywords": [],
+  "author": "dario.freire@gmail.com",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pivotjs/account-service/issues"
+  },
+  "homepage": "https://github.com/pivotjs/account-service#readme",
+  "devDependencies": {
+    "@types/bcrypt": "^1.0.0",
+    "@types/bluebird": "^3.0.37",
+    "@types/knex": "0.0.41",
+    "@types/node": "^7.0.5",
+    "@types/shortid": "0.0.28",
+    "typescript": "^2.2.1"
+  },
+  "dependencies": {
+    "bcrypt": "^1.0.2",
+    "bluebird": "^3.5.0",
+    "knex": "^0.12.7",
+    "shortid": "^2.2.6"
+  }
+}
