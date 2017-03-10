@@ -5,6 +5,8 @@
   "main": "lib/index.js",
   "typings": "lib/index",
   "scripts": {
+    "test": "NODE_ENV=test jest",
+    "_pretest": "tsc",
     "compile": "tsc",
     "prepublish": "npm run compile"
   },
@@ -22,6 +24,8 @@
   "devDependencies": {
     "@types/bcrypt": "^1.0.0",
     "@types/bluebird": "^3.0.37",
+    "@types/core-js": "^0.9.35",
+    "@types/jest": "^18.1.1",
     "@types/knex": "0.0.41",
     "@types/node": "^7.0.5",
     "@types/shortid": "0.0.28",
@@ -30,7 +34,18 @@
   "dependencies": {
     "bcrypt": "^1.0.2",
     "bluebird": "^3.5.0",
+    "jest": "^19.0.2",
     "knex": "^0.12.7",
-    "shortid": "^2.2.6"
+    "pg": "^6.1.4",
+    "shortid": "^2.2.6",
+    "sqlite3": "^3.1.8"
+  },
+  "jest": {
+    "bail": true,
+    "testEnvironment": "node",
+    "roots": [
+      "lib"
+    ],
+    "coverageDirectory": "coverage"
   }
 }

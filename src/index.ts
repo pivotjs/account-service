@@ -2,7 +2,16 @@ import * as Knex from 'knex';
 import * as Promise from 'bluebird';
 import * as bcrypt from 'bcrypt';
 import * as shortid from 'shortid';
-import { Account, Session } from './Types';
+
+export interface Account {
+    id: string;
+    name?: string;
+    email: string;
+    hashpass: string;
+    verified_at?: Date;
+    created_at: Date;
+    updated_at: Date;
+};
 
 export class AccountService {
     private db: any;
@@ -11,7 +20,18 @@ export class AccountService {
         this.db = db;
     }
 
-    signup(email: string, password: string): Promise<Session> {
+    initialize(): Promise<void> {
+        return this.db.schema.createTableIfNotExists('account', (table) => {
+            table.string('id').primary();
+            table.string('name');
+            table.string('email').unique().notNullable();
+            table.string('hashpass').unique().notNullable();
+            table.timestamp('verified_at');
+            table.timestamps();
+        });
+    }
+
+    signup(email: string, password: string): Promise<Account> {
         return this.db('account')
             .select('*')
             .where('email', email)
