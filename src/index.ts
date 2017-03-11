@@ -8,9 +8,9 @@ export interface Account {
     name?: string;
     email: string;
     hashpass: string;
-    verified_at?: Date;
-    created_at: Date;
-    updated_at: Date;
+    verified_at?: number;
+    created_at: number;
+    updated_at: number;
 };
 
 export class AccountService {
@@ -21,8 +21,6 @@ export class AccountService {
     }
 
     initialize(): Promise<void> {
-        console.log('initialize');
-
         return this.db.schema.createTableIfNotExists('account', (table) => {
             table.string('id').primary();
             table.string('name');
@@ -43,12 +41,21 @@ export class AccountService {
                 } else {
                     return this.createAccount(email, password);
                 }
-            })
+            });
+    }
 
+    verify(email: string) {
+        const now = new Date().getTime();
+        return this.db('account')
+            .where('email', email)
+            .update({
+                verified_at: now,
+                updated_at: now,
+            });
     }
 
     private createAccount(email: string, password: string): Promise<string> {
-        const now = new Date();
+        const now = new Date().getTime();
         const account: Account = {
             id: shortid.generate(),
             email,

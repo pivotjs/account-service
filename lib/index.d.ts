@@ -6,14 +6,15 @@ export interface Account {
     name?: string;
     email: string;
     hashpass: string;
-    verified_at?: Date;
-    created_at: Date;
-    updated_at: Date;
+    verified_at?: number;
+    created_at: number;
+    updated_at: number;
 }
 export declare class AccountService {
     private db;
     constructor(db: Knex);
     initialize(): Promise<void>;
     signup(email: string, password: string): Promise<string>;
+    verify(email: string): any;
     private createAccount(email, password);
 }
