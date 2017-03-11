@@ -8,13 +8,14 @@ export const Errors = {
     NOT_FOUND: 'NOT_FOUND',
     NOT_VERIFIED: 'NOT_VERIFIED',
     WRONG_PASSWORD: 'WRONG_PASSWORD',
+    EXPIRED_RESET_KEY: 'EXPIRED_RESET_KEY',
 }
 
 export interface Account {
     id: string;
     email: string;
     hashpass: string;
-    reset_key?: string;
+    reset_key: string;
     verified_email_at: number;
     changed_email_at: number;
     reset_expire_at: number;
@@ -35,7 +36,7 @@ export class AccountService {
             table.string('name');
             table.string('email').unique().notNullable();
             table.string('hashpass').notNullable();
-            table.string('reset_key');//.unique();
+            table.string('reset_key').unique().notNullable();
             table.timestamp('verified_email_at');
             table.timestamp('changed_email_at');
             table.timestamp('reset_expire_at');
@@ -113,7 +114,19 @@ export class AccountService {
     }
 
     resetPassword(email: string, resetKey: string, newPassword: string) {
-
+        return this.findOne({ email, reset_key: resetKey })
+            .then((account: Account) => {
+                if (new Date().getTime() > account.reset_expire_at) {
+                    return Promise.reject(Errors.EXPIRED_RESET_KEY);
+                } else {
+                    return this.db('account')
+                        .where('id', account.id)
+                        .update({
+                            hashpass: bcrypt.hashSync(newPassword, 10),
+                            updated_at: new Date().getTime(),
+                        });
+                }
+            });
     }
 
     private createAccount(email: string, password: string): Promise<string> {
@@ -122,6 +135,7 @@ export class AccountService {
             id: shortid.generate(),
             email,
             hashpass: bcrypt.hashSync(password, 10),
+            reset_key: shortid.generate(),
             verified_email_at: 0,
             changed_email_at: now,
             reset_expire_at: 0,

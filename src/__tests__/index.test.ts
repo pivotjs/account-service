@@ -19,6 +19,7 @@ const accounts: Account[] = [{
     id: 'account-0',
     email: 'account-0@example.com',
     hashpass: bcrypt.hashSync('pass-0', 10),
+    reset_key: 'reset-0',
     verified_email_at: 0,
     changed_email_at: now,
     reset_expire_at: 0,
@@ -28,9 +29,10 @@ const accounts: Account[] = [{
     id: 'account-1',
     email: 'account-1@example.com',
     hashpass: bcrypt.hashSync('pass-1', 10),
+    reset_key: 'reset-1',
     verified_email_at: now,
     changed_email_at: now,
-    reset_expire_at: 0,
+    reset_expire_at: new Date().getTime() + (60 * 60 * 1000),
     created_at: now,
     updated_at: now,
 }];
@@ -234,9 +236,7 @@ describe('AccountService', () => {
     });
 
     describe('.generateResetKey', () => {
-        const now = new Date().getTime();
-        const future = now + (60 * 1000);
-        const past = now - (60 * 1000);
+        const future = new Date().getTime() + (60 * 1000);
 
         describe('with the wrong email', () => {
             it('should fail', () => {
@@ -255,7 +255,50 @@ describe('AccountService', () => {
                             .then((_accounts: Account[]) => {
                                 expect(_accounts.length).toBe(1);
                                 expect(_accounts[0].reset_key).toBe(resetKey);
+                                expect(_accounts[0].reset_key.length).toBeGreaterThan(5);
                                 expect(_accounts[0].reset_expire_at).toBe(future);
+                            });
+                    });
+            });
+        });
+    });
+
+    describe('.resetPassword', () => {
+        describe('with the wrong email', () => {
+            it('should fail', () => {
+                return service.resetPassword('wrong-email', accounts[1].reset_key, 'pass-111')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.NOT_FOUND);
+                    });
+            });
+        });
+
+        describe('with the wrong resetKey', () => {
+            it('should fail', () => {
+                return service.resetPassword(accounts[1].email, 'wrong-reset-key', 'pass-111')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.NOT_FOUND);
+                    });
+            });
+        });
+
+        describe('with the right email/resetKey, for an account with an expired resetKey', () => {
+            it('should fail', () => {
+                return service.resetPassword(accounts[0].email, accounts[0].reset_key, 'pass-111')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.EXPIRED_RESET_KEY);
+                    });
+            });
+        });
+
+        describe('with the right email/resetKey, for an account with a valid resetKey', () => {
+            it('should change the password', () => {
+                return service.resetPassword(accounts[1].email, accounts[1].reset_key, 'pass-111')
+                    .then(() => {
+                        return db('account').where('id', accounts[1].id)
+                            .then((_accounts: Account[]) => {
+                                expect(_accounts.length).toBe(1);
+                                expect(bcrypt.compareSync('pass-111', _accounts[0].hashpass)).toBe(true);
                             });
                     });
             });
