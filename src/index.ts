@@ -7,8 +7,10 @@ export const Errors = {
     signup: {
         EMAIL_IN_USE: 'EMAIL_IN_USE',
     },
-    signin: {
+    find: {
         NOT_FOUND: 'NOT_FOUND',
+    },
+    signin: {
         NOT_VERIFIED: 'NOT_VERIFIED',
         WRONG_PASSWORD: 'WRONG_PASSWORD',
     },
@@ -66,21 +68,36 @@ export class AccountService {
             });
     }
 
-    signin(email: string, password: string, options = { isVerified: false }): Promise<Account> {
-        return this.db('account')
-            .select('*')
-            .where('email', email)
-            .then((accounts: Account[]) => {
-                if (accounts.length !== 1) {
-                    return Promise.reject(Errors.signin.NOT_FOUND);
-                } else if (!bcrypt.compareSync(password, accounts[0].hashpass)) {
-                    return Promise.reject(Errors.signin.WRONG_PASSWORD);
-                } else if (options.isVerified === true && accounts[0].verified_at < accounts[0].changed_email_at) {
-                    return Promise.reject(Errors.signin.NOT_VERIFIED);
-                } else {
-                    return accounts[0];
-                }
+    signin(email: string, password: string, options = { mustBeVerified: false }): Promise<Account> {
+        return this.findOne({ email })
+            .then((account: Account) => this.validatePassword(account, password))
+            .then((account: Account) => this.validateIsVerified(account, options.mustBeVerified));
+    }
+
+    changeEmail(id: string, password: string, newEmail: string) {
+        return this.findOne({ id })
+            .then((account: Account) => this.validatePassword(account, password))
+            .then((account: Account) => {
+                const now = new Date().getTime();
+                return this.db('account')
+                    .where('id', id)
+                    .update({
+                        verified_at: now,
+                        updated_at: now,
+                    });
             });
+    }
+
+    changePassword(id: string, password: string, newPassword: string) {
+
+    }
+
+    requestResetPassword(email: string, expireAt: number) {
+
+    }
+
+    resetPassword(resetKey: string, newPassword: string) {
+
     }
 
     private createAccount(email: string, password: string): Promise<string> {
@@ -95,5 +112,34 @@ export class AccountService {
             updated_at: now,
         };
         return this.db('account').insert(account).then(() => account.id);
+    }
+
+    private findOne(attributes: { [key: string]: any }) {
+        return this.db('account')
+            .select('*')
+            .where(attributes)
+            .then((accounts: Account[]) => {
+                if (accounts.length !== 1) {
+                    return Promise.reject(Errors.find.NOT_FOUND);
+                } else {
+                    return accounts[0];
+                }
+            });
+    }
+
+    private validatePassword(account: Account, password: string): Promise<Account> {
+        if (!bcrypt.compareSync(password, account.hashpass)) {
+            return Promise.reject(Errors.signin.WRONG_PASSWORD);
+        } else {
+            return Promise.resolve(account);
+        }
+    }
+
+    private validateIsVerified(account: Account, mustBeVerified = false): Promise<Account> {
+        if (mustBeVerified === true && account.verified_at < account.changed_email_at) {
+            return Promise.reject(Errors.signin.NOT_VERIFIED);
+        } else {
+            return Promise.resolve(account);
+        }
     }
 }

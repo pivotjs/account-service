@@ -102,7 +102,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'pass-0')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.signin.NOT_FOUND);
+                        expect(err).toBe(Errors.find.NOT_FOUND);
                     });
             });
         });
@@ -119,14 +119,14 @@ describe('AccountService', () => {
         describe('with the wrong email and password', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'wrong-password').catch((err: string) => {
-                    expect(err).toBe(Errors.signin.NOT_FOUND);
+                    expect(err).toBe(Errors.find.NOT_FOUND);
                 });
             });
         });
 
         describe('with the right email/password of an unverified account, requiring a verified account', () => {
             it('should fail', () => {
-                service.signin(accounts[0].email, 'pass-0', { isVerified: true })
+                service.signin(accounts[0].email, 'pass-0', { mustBeVerified: true })
                     .catch((err: string) => {
                         expect(err).toBe(Errors.signin.NOT_VERIFIED);
                     });
@@ -135,7 +135,7 @@ describe('AccountService', () => {
 
         describe('with the right email/password of a verified account, requiring a verified account', () => {
             it('should signin', () => {
-                service.signin(accounts[1].email, 'pass-1', { isVerified: true })
+                service.signin(accounts[1].email, 'pass-1', { mustBeVerified: true })
                     .then((_account: Account) => {
                         expect(_account.id).toBe(accounts[1].id);
                         expect(_account.email).toBe(accounts[1].email);

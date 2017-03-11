@@ -5,8 +5,10 @@ export declare const Errors: {
     signup: {
         EMAIL_IN_USE: string;
     };
-    signin: {
+    find: {
         NOT_FOUND: string;
+    };
+    signin: {
         NOT_VERIFIED: string;
         WRONG_PASSWORD: string;
     };
@@ -27,7 +29,14 @@ export declare class AccountService {
     signup(email: string, password: string): Promise<string>;
     verify(email: string): any;
     signin(email: string, password: string, options?: {
-        isVerified: boolean;
+        mustBeVerified: boolean;
     }): Promise<Account>;
+    changeEmail(id: string, password: string, newEmail: string): any;
+    changePassword(id: string, password: string, newPassword: string): void;
+    requestResetPassword(email: string, expireAt: number): void;
+    resetPassword(resetKey: string, newPassword: string): void;
     private createAccount(email, password);
+    private findOne(attributes);
+    private validatePassword(account, password);
+    private validateIsVerified(account, mustBeVerified?);
 }
