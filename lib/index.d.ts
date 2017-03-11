@@ -11,8 +11,10 @@ export interface Account {
     id: string;
     email: string;
     hashpass: string;
-    verified_at: number;
+    reset_key?: string;
+    verified_email_at: number;
     changed_email_at: number;
+    reset_expire_at: number;
     created_at: number;
     updated_at: number;
 }
@@ -21,17 +23,17 @@ export declare class AccountService {
     constructor(db: Knex);
     initialize(): Promise<void>;
     signup(email: string, password: string): Promise<string>;
-    verify(email: string): any;
+    verifyEmail(email: string): any;
     signin(email: string, password: string, options?: {
-        mustBeVerified: boolean;
+        mustHaveEmailVerified: boolean;
     }): Promise<Account>;
     changeEmail(id: string, password: string, newEmail: string): any;
-    changePassword(id: string, password: string, newPassword: string): void;
-    requestResetPassword(email: string, expireAt: number): void;
-    resetPassword(resetKey: string, newPassword: string): void;
+    changePassword(id: string, password: string, newPassword: string): any;
+    generateResetKey(email: string, expireAt: number): Promise<string>;
+    resetPassword(email: string, resetKey: string, newPassword: string): void;
     private createAccount(email, password);
     private findOne(attributes);
     private ensureSamePassword(account, password);
-    private ensureVerified(account);
+    private ensureVerifiedEmail(account);
     private ensureEmailNotInUse(email);
 }

@@ -14,8 +14,10 @@ export interface Account {
     id: string;
     email: string;
     hashpass: string;
-    verified_at: number;
+    reset_key?: string;
+    verified_email_at: number;
     changed_email_at: number;
+    reset_expire_at: number;
     created_at: number;
     updated_at: number;
 };
@@ -33,8 +35,10 @@ export class AccountService {
             table.string('name');
             table.string('email').unique().notNullable();
             table.string('hashpass').notNullable();
-            table.timestamp('verified_at');
+            table.string('reset_key');//.unique();
+            table.timestamp('verified_email_at');
             table.timestamp('changed_email_at');
+            table.timestamp('reset_expire_at');
             table.timestamps();
         });
     }
@@ -46,20 +50,20 @@ export class AccountService {
             });
     }
 
-    verify(email: string) {
+    verifyEmail(email: string) {
         const now = new Date().getTime();
         return this.db('account')
             .where('email', email)
             .update({
-                verified_at: now,
+                verified_email_at: now,
                 updated_at: now,
             });
     }
 
-    signin(email: string, password: string, options = { mustBeVerified: false }): Promise<Account> {
+    signin(email: string, password: string, options = { mustHaveEmailVerified: false }): Promise<Account> {
         return this.findOne({ email })
             .then((account: Account) => this.ensureSamePassword(account, password))
-            .then((account: Account) => options.mustBeVerified ? this.ensureVerified(account) : account);
+            .then((account: Account) => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account);
     }
 
     changeEmail(id: string, password: string, newEmail: string) {
@@ -72,20 +76,43 @@ export class AccountService {
                     .where('id', id)
                     .update({
                         email: newEmail,
+                        changed_email_at: now,
                         updated_at: now,
                     });
             });
     }
 
     changePassword(id: string, password: string, newPassword: string) {
-
+        return this.findOne({ id })
+            .then((account: Account) => this.ensureSamePassword(account, password))
+            .then(() => {
+                return this.db('account')
+                    .where('id', id)
+                    .update({
+                        hashpass: bcrypt.hashSync(newPassword, 10),
+                        updated_at: new Date().getTime(),
+                    });
+            });
     }
 
-    requestResetPassword(email: string, expireAt: number) {
-
+    generateResetKey(email: string, expireAt: number): Promise<string> {
+        return this.findOne({ email })
+            .then((account: Account) => {
+                const resetKey = shortid.generate();
+                return this.db('account')
+                    .where('id', account.id)
+                    .update({
+                        reset_key: resetKey,
+                        reset_expire_at: expireAt,
+                        updated_at: new Date().getTime(),
+                    })
+                    .then(() => {
+                        return Promise.resolve(resetKey);
+                    });
+            });
     }
 
-    resetPassword(resetKey: string, newPassword: string) {
+    resetPassword(email: string, resetKey: string, newPassword: string) {
 
     }
 
@@ -95,8 +122,9 @@ export class AccountService {
             id: shortid.generate(),
             email,
             hashpass: bcrypt.hashSync(password, 10),
-            verified_at: 0,
+            verified_email_at: 0,
             changed_email_at: now,
+            reset_expire_at: 0,
             created_at: now,
             updated_at: now,
         };
@@ -124,8 +152,8 @@ export class AccountService {
         }
     }
 
-    private ensureVerified(account: Account): Promise<Account> {
-        if (account.verified_at < account.changed_email_at) {
+    private ensureVerifiedEmail(account: Account): Promise<Account> {
+        if (account.verified_email_at < account.changed_email_at) {
             return Promise.reject(Errors.NOT_VERIFIED);
         } else {
             return Promise.resolve(account);
