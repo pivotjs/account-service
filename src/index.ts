@@ -3,7 +3,7 @@ import * as Promise from 'bluebird';
 import * as bcrypt from 'bcrypt';
 import * as shortid from 'shortid';
 
-export const Errors = {
+export const AuthenticationErrors = {
     EMAIL_IN_USE: 'EMAIL_IN_USE',
     NOT_FOUND: 'NOT_FOUND',
     NOT_VERIFIED: 'NOT_VERIFIED',
@@ -11,7 +11,7 @@ export const Errors = {
     EXPIRED_RESET_KEY: 'EXPIRED_RESET_KEY',
 }
 
-export interface Account {
+export interface UserAccount {
     id: string;
     email: string;
     hashpass: string;
@@ -23,7 +23,7 @@ export interface Account {
     updated_at: number;
 };
 
-export class AccountService {
+export class AuthenticationService {
     private db: any;
 
     constructor(db: Knex) {
@@ -31,7 +31,7 @@ export class AccountService {
     }
 
     initialize(): Promise<void> {
-        return this.db.schema.createTableIfNotExists('account', (table) => {
+        return this.db.schema.createTableIfNotExists('user_account', (table) => {
             table.string('id').primary();
             table.string('name');
             table.string('email').unique().notNullable();
@@ -53,7 +53,7 @@ export class AccountService {
 
     verifyEmail(email: string) {
         const now = new Date().getTime();
-        return this.db('account')
+        return this.db('user_account')
             .where('email', email)
             .update({
                 verified_email_at: now,
@@ -61,19 +61,19 @@ export class AccountService {
             });
     }
 
-    signin(email: string, password: string, options = { mustHaveEmailVerified: false }): Promise<Account> {
+    signin(email: string, password: string, options = { mustHaveEmailVerified: false }): Promise<UserAccount> {
         return this.findOne({ email })
-            .then((account: Account) => this.ensureSamePassword(account, password))
-            .then((account: Account) => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account);
+            .then((account: UserAccount) => this.ensureSamePassword(account, password))
+            .then((account: UserAccount) => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account);
     }
 
     changeEmail(id: string, password: string, newEmail: string) {
         return this.findOne({ id })
-            .then((account: Account) => this.ensureSamePassword(account, password))
-            .then((account: Account) => this.ensureEmailNotInUse(newEmail))
+            .then((account: UserAccount) => this.ensureSamePassword(account, password))
+            .then((account: UserAccount) => this.ensureEmailNotInUse(newEmail))
             .then(() => {
                 const now = new Date().getTime();
-                return this.db('account')
+                return this.db('user_account')
                     .where('id', id)
                     .update({
                         email: newEmail,
@@ -85,9 +85,9 @@ export class AccountService {
 
     changePassword(id: string, password: string, newPassword: string) {
         return this.findOne({ id })
-            .then((account: Account) => this.ensureSamePassword(account, password))
+            .then((account: UserAccount) => this.ensureSamePassword(account, password))
             .then(() => {
-                return this.db('account')
+                return this.db('user_account')
                     .where('id', id)
                     .update({
                         hashpass: bcrypt.hashSync(newPassword, 10),
@@ -98,9 +98,9 @@ export class AccountService {
 
     generateResetKey(email: string, expireAt: number): Promise<string> {
         return this.findOne({ email })
-            .then((account: Account) => {
+            .then((account: UserAccount) => {
                 const resetKey = shortid.generate();
-                return this.db('account')
+                return this.db('user_account')
                     .where('id', account.id)
                     .update({
                         reset_key: resetKey,
@@ -115,11 +115,11 @@ export class AccountService {
 
     resetPassword(email: string, resetKey: string, newPassword: string) {
         return this.findOne({ email, reset_key: resetKey })
-            .then((account: Account) => {
+            .then((account: UserAccount) => {
                 if (new Date().getTime() > account.reset_expire_at) {
-                    return Promise.reject(Errors.EXPIRED_RESET_KEY);
+                    return Promise.reject(AuthenticationErrors.EXPIRED_RESET_KEY);
                 } else {
-                    return this.db('account')
+                    return this.db('user_account')
                         .where('id', account.id)
                         .update({
                             hashpass: bcrypt.hashSync(newPassword, 10),
@@ -131,7 +131,7 @@ export class AccountService {
 
     private createAccount(email: string, password: string): Promise<string> {
         const now = new Date().getTime();
-        const account: Account = {
+        const account: UserAccount = {
             id: shortid.generate(),
             email,
             hashpass: bcrypt.hashSync(password, 10),
@@ -142,45 +142,45 @@ export class AccountService {
             created_at: now,
             updated_at: now,
         };
-        return this.db('account').insert(account).then(() => account.id);
+        return this.db('user_account').insert(account).then(() => account.id);
     }
 
     private findOne(attributes: { [key: string]: any }) {
-        return this.db('account')
+        return this.db('user_account')
             .select('*')
             .where(attributes)
-            .then((accounts: Account[]) => {
+            .then((accounts: UserAccount[]) => {
                 if (accounts.length !== 1) {
-                    return Promise.reject(Errors.NOT_FOUND);
+                    return Promise.reject(AuthenticationErrors.NOT_FOUND);
                 } else {
                     return accounts[0];
                 }
             });
     }
 
-    private ensureSamePassword(account: Account, password: string): Promise<Account> {
+    private ensureSamePassword(account: UserAccount, password: string): Promise<UserAccount> {
         if (!bcrypt.compareSync(password, account.hashpass)) {
-            return Promise.reject(Errors.WRONG_PASSWORD);
+            return Promise.reject(AuthenticationErrors.WRONG_PASSWORD);
         } else {
             return Promise.resolve(account);
         }
     }
 
-    private ensureVerifiedEmail(account: Account): Promise<Account> {
+    private ensureVerifiedEmail(account: UserAccount): Promise<UserAccount> {
         if (account.verified_email_at < account.changed_email_at) {
-            return Promise.reject(Errors.NOT_VERIFIED);
+            return Promise.reject(AuthenticationErrors.NOT_VERIFIED);
         } else {
             return Promise.resolve(account);
         }
     }
 
     private ensureEmailNotInUse(email: string): Promise<boolean> {
-        return this.db('account')
+        return this.db('user_account')
             .select('*')
             .where('email', email)
-            .then((accounts: Account[]) => {
+            .then((accounts: UserAccount[]) => {
                 if (accounts.length > 0) {
-                    return Promise.reject(Errors.EMAIL_IN_USE);
+                    return Promise.reject(AuthenticationErrors.EMAIL_IN_USE);
                 } else {
                     return true;
                 }

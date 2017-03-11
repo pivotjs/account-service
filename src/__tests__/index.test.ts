@@ -1,6 +1,6 @@
 import * as Knex from 'knex';
 import * as bcrypt from 'bcrypt';
-import { Account, AccountService, Errors } from '..';
+import { UserAccount, AuthenticationService, AuthenticationErrors } from '..';
 
 const db = Knex({
     "debug": false,
@@ -11,11 +11,11 @@ const db = Knex({
     }
 });
 
-const service = new AccountService(db);
+const service = new AuthenticationService(db);
 
 const now = new Date().getTime();
 
-const accounts: Account[] = [{
+const accounts: UserAccount[] = [{
     id: 'account-0',
     email: 'account-0@example.com',
     hashpass: bcrypt.hashSync('pass-0', 10),
@@ -37,7 +37,7 @@ const accounts: Account[] = [{
     updated_at: now,
 }];
 
-describe('AccountService', () => {
+describe('AuthenticationService', () => {
     beforeAll(() => {
         return service.initialize();
     });
@@ -45,9 +45,9 @@ describe('AccountService', () => {
     afterAll(db.destroy);
 
     beforeEach(() => {
-        return db('account')
+        return db('user_account')
             .delete()
-            .then(() => db('account').insert(accounts))
+            .then(() => db('user_account').insert(accounts))
     });
 
     expect(service).toBeDefined();
@@ -59,10 +59,10 @@ describe('AccountService', () => {
                 const password = '123';
                 return service.signup(email, password).then((id: string) => {
                     expect(id).toBeDefined();
-                    return db('account')
+                    return db('user_account')
                         .select('*')
                         .where('id', id)
-                        .then((_accounts: Account[]) => {
+                        .then((_accounts: UserAccount[]) => {
                             expect(_accounts.length).toBe(1);
                             expect(_accounts[0].email).toBe(email);
                             expect(bcrypt.compareSync(password, _accounts[0].hashpass)).toBe(true);
@@ -76,7 +76,7 @@ describe('AccountService', () => {
                 const email = 'account-0@example.com';
                 const password = '123';
                 return service.signup(email, password).catch((err) => {
-                    expect(err).toBe(Errors.EMAIL_IN_USE);
+                    expect(err).toBe(AuthenticationErrors.EMAIL_IN_USE);
                 });
             });
         });
@@ -86,10 +86,10 @@ describe('AccountService', () => {
         describe('with an unverified email', () => {
             it('should verify the email', () => {
                 return service.verifyEmail(accounts[0].email).then(() => {
-                    return db('account')
+                    return db('user_account')
                         .select('*')
                         .where('id', accounts[0].id)
-                        .then((_accounts: Account[]) => {
+                        .then((_accounts: UserAccount[]) => {
                             expect(_accounts.length).toBe(1);
                             expect(_accounts[0].id).toBe(accounts[0].id);
                             expect(_accounts[0].email).toBe(accounts[0].email);
@@ -106,7 +106,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'pass-0')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_FOUND);
+                        expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
             });
         });
@@ -115,7 +115,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin(accounts[0].email, 'wrong-password')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.WRONG_PASSWORD);
+                        expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
                     });
             });
         });
@@ -123,7 +123,7 @@ describe('AccountService', () => {
         describe('with the wrong email and password', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'wrong-password').catch((err: string) => {
-                    expect(err).toBe(Errors.NOT_FOUND);
+                    expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                 });
             });
         });
@@ -132,7 +132,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin(accounts[0].email, 'pass-0', { mustHaveEmailVerified: true })
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_VERIFIED);
+                        expect(err).toBe(AuthenticationErrors.NOT_VERIFIED);
                     });
             });
         });
@@ -140,7 +140,7 @@ describe('AccountService', () => {
         describe('with the right email/password of a verified account, requiring a verified account', () => {
             it('should signin', () => {
                 service.signin(accounts[1].email, 'pass-1', { mustHaveEmailVerified: true })
-                    .then((_account: Account) => {
+                    .then((_account: UserAccount) => {
                         expect(_account.id).toBe(accounts[1].id);
                         expect(_account.email).toBe(accounts[1].email);
                     });
@@ -150,7 +150,7 @@ describe('AccountService', () => {
         describe('with the right email/password of an unverified account, not requiring a verified account', () => {
             it('should signin', () => {
                 service.signin(accounts[0].email, 'pass-0')
-                    .then((_account: Account) => {
+                    .then((_account: UserAccount) => {
                         expect(_account.id).toBe(accounts[0].id);
                         expect(_account.email).toBe(accounts[0].email);
                     });
@@ -163,7 +163,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.changeEmail('wrong-id', 'pass-0', 'account-00@example.com')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_FOUND);
+                        expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
             });
         });
@@ -172,7 +172,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.changeEmail(accounts[0].id, 'wrong-pass', 'account-00@example.com')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.WRONG_PASSWORD);
+                        expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
                     });
             });
         });
@@ -181,7 +181,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.changeEmail(accounts[0].id, 'pass-0', 'account-1@example.com')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.EMAIL_IN_USE);
+                        expect(err).toBe(AuthenticationErrors.EMAIL_IN_USE);
                     });
             });
         });
@@ -190,8 +190,8 @@ describe('AccountService', () => {
             it('should change the email', () => {
                 return service.changeEmail(accounts[0].id, 'pass-0', 'account-00@example.com')
                     .then(() => {
-                        return db('account').where('id', accounts[0].id)
-                            .then((_accounts: Account[]) => {
+                        return db('user_account').where('id', accounts[0].id)
+                            .then((_accounts: UserAccount[]) => {
                                 expect(_accounts.length).toBe(1);
                                 expect(_accounts[0].email).toBe('account-00@example.com');
                                 expect(_accounts[0].changed_email_at / (60 * 1000)).toBeCloseTo(new Date().getTime() / (60 * 1000));
@@ -207,7 +207,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.changePassword('wrong-id', 'pass-0', 'pass-00')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_FOUND);
+                        expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
             });
         });
@@ -216,7 +216,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.changeEmail(accounts[0].id, 'wrong-pass', 'pass-00')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.WRONG_PASSWORD);
+                        expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
                     });
             });
         });
@@ -225,8 +225,8 @@ describe('AccountService', () => {
             it('should change the password', () => {
                 return service.changePassword(accounts[0].id, 'pass-0', 'pass-00')
                     .then(() => {
-                        return db('account').where('id', accounts[0].id)
-                            .then((_accounts: Account[]) => {
+                        return db('user_account').where('id', accounts[0].id)
+                            .then((_accounts: UserAccount[]) => {
                                 expect(_accounts.length).toBe(1);
                                 expect(bcrypt.compareSync('pass-00', _accounts[0].hashpass)).toBe(true);
                             });
@@ -242,7 +242,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.generateResetKey('wrong-email', future)
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_FOUND);
+                        expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
             });
         });
@@ -251,8 +251,8 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.generateResetKey(accounts[0].email, future)
                     .then((resetKey: string) => {
-                        return db('account').where('id', accounts[0].id)
-                            .then((_accounts: Account[]) => {
+                        return db('user_account').where('id', accounts[0].id)
+                            .then((_accounts: UserAccount[]) => {
                                 expect(_accounts.length).toBe(1);
                                 expect(_accounts[0].reset_key).toBe(resetKey);
                                 expect(_accounts[0].reset_key.length).toBeGreaterThan(5);
@@ -268,7 +268,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.resetPassword('wrong-email', accounts[1].reset_key, 'pass-111')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_FOUND);
+                        expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
             });
         });
@@ -277,7 +277,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.resetPassword(accounts[1].email, 'wrong-reset-key', 'pass-111')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.NOT_FOUND);
+                        expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
             });
         });
@@ -286,7 +286,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 return service.resetPassword(accounts[0].email, accounts[0].reset_key, 'pass-111')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.EXPIRED_RESET_KEY);
+                        expect(err).toBe(AuthenticationErrors.EXPIRED_RESET_KEY);
                     });
             });
         });
@@ -295,8 +295,8 @@ describe('AccountService', () => {
             it('should change the password', () => {
                 return service.resetPassword(accounts[1].email, accounts[1].reset_key, 'pass-111')
                     .then(() => {
-                        return db('account').where('id', accounts[1].id)
-                            .then((_accounts: Account[]) => {
+                        return db('user_account').where('id', accounts[1].id)
+                            .then((_accounts: UserAccount[]) => {
                                 expect(_accounts.length).toBe(1);
                                 expect(bcrypt.compareSync('pass-111', _accounts[0].hashpass)).toBe(true);
                             });

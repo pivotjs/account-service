@@ -1,26 +1,26 @@
 {
-  "name": "pivot-account-service",
+  "name": "pivot-authentication-service",
   "version": "0.0.1",
-  "description": "A user account service",
+  "description": "User authentication service",
   "main": "lib/index.js",
   "typings": "lib/index",
   "scripts": {
     "test": "NODE_ENV=test jest --coverage",
-    "_pretest": "tsc",
+    "pretest": "tsc",
     "compile": "tsc",
-    "prepublish": "npm run compile"
+    "prepublish": "npm run test"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pivotjs/account-service.git"
+    "url": "git+https://github.com/pivotjs/authentication-service.git"
   },
   "keywords": [],
   "author": "dario.freire@gmail.com",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pivotjs/account-service/issues"
+    "url": "https://github.com/pivotjs/authentication-service/issues"
   },
-  "homepage": "https://github.com/pivotjs/account-service#readme",
+  "homepage": "https://github.com/pivotjs/authentication-service#readme",
   "devDependencies": {
     "@types/bcrypt": "^1.0.0",
     "@types/bluebird": "^3.0.37",
