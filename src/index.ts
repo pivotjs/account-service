@@ -5,10 +5,11 @@ import * as shortid from 'shortid';
 
 export const AuthenticationErrors = {
     EMAIL_IN_USE: 'EMAIL_IN_USE',
+    EXPIRED_RESET_KEY: 'EXPIRED_RESET_KEY',
+    FAILED_ATTEMPTS_DELAY: 'FAILED_ATTEMPTS_DELAY',
     NOT_FOUND: 'NOT_FOUND',
     NOT_VERIFIED: 'NOT_VERIFIED',
     WRONG_PASSWORD: 'WRONG_PASSWORD',
-    EXPIRED_RESET_KEY: 'EXPIRED_RESET_KEY',
 }
 
 export interface UserAccount {
@@ -17,6 +18,7 @@ export interface UserAccount {
     hashpass: string;
     reset_key: string;
     failed_attempts: number;
+    failed_attempt_at: number;
     verified_email_at: number;
     changed_email_at: number;
     reset_expire_at: number;
@@ -40,14 +42,15 @@ export class AuthenticationService {
 
     initialize(): Promise<void> {
         return this.db.schema.createTableIfNotExists('user_account', (table) => {
-            table.string('id').primary();
+            table.string('id', 14).primary();
             table.string('email').unique().notNullable();
             table.string('hashpass').notNullable();
-            table.string('reset_key').unique().notNullable();
+            table.string('reset_key', 14).unique().notNullable();
             table.integer('failed_attempts').notNullable();
-            table.timestamp('verified_email_at');
-            table.timestamp('changed_email_at');
-            table.timestamp('reset_expire_at');
+            table.timestamp('failed_attempt_at').notNullable();
+            table.timestamp('verified_email_at').notNullable();
+            table.timestamp('changed_email_at').notNullable();
+            table.timestamp('reset_expire_at').notNullable();
             table.timestamps();
         });
     }
@@ -72,7 +75,8 @@ export class AuthenticationService {
     signin(email: string, password: string, options = { mustHaveEmailVerified: false }): Promise<UserAccount> {
         return this.findOne({ email })
             .then((account: UserAccount) => {
-                return this.ensureSamePassword(account, password)
+                return this.ensureOutOfFailedAttemptsDelay(account)
+                    .then(() => this.ensureSamePassword(account, password))
                     .then(() => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account)
                     .then(() => this.updateAccount(account.id, { failed_attempts: 0 }))
                     .then(() => account);
@@ -105,11 +109,12 @@ export class AuthenticationService {
     resetPassword(email: string, resetKey: string, newPassword: string) {
         return this.findOne({ email, reset_key: resetKey })
             .then((account: UserAccount) => {
-                if (new Date().getTime() > account.reset_expire_at) {
-                    return Promise.reject(AuthenticationErrors.EXPIRED_RESET_KEY);
-                } else {
-                    return this.updateAccount(account.id, { hashpass: bcrypt.hashSync(newPassword, 10) });
-                }
+                return this.ensureOutOfFailedAttemptsDelay(account)
+                    .then(() => this.ensureValidResetKey(account))
+                    .then(() => this.updateAccount(account.id, {
+                        hashpass: bcrypt.hashSync(newPassword, 10),
+                        failed_attempts: 0,
+                    }));
             });
     }
 
@@ -119,8 +124,9 @@ export class AuthenticationService {
             id: shortid.generate(),
             email,
             hashpass: bcrypt.hashSync(password, 10),
-            failed_attempts: 0,
             reset_key: shortid.generate(),
+            failed_attempts: 0,
+            failed_attempt_at: 0,
             verified_email_at: 0,
             changed_email_at: now,
             reset_expire_at: 0,
@@ -151,24 +157,6 @@ export class AuthenticationService {
             });
     }
 
-    private ensureSamePassword(account: UserAccount, password: string): Promise<UserAccount> {
-        if (!bcrypt.compareSync(password, account.hashpass)) {
-            return this.updateAccount(account.id, { failed_attempts: account.failed_attempts + 1 })
-                .then(() => Promise.reject(AuthenticationErrors.WRONG_PASSWORD));
-        } else {
-            return this.updateAccount(account.id, { failed_attempts: 0 })
-                .then(() => account);
-        }
-    }
-
-    private ensureVerifiedEmail(account: UserAccount): Promise<UserAccount> {
-        if (account.verified_email_at < account.changed_email_at) {
-            return Promise.reject(AuthenticationErrors.NOT_VERIFIED);
-        } else {
-            return Promise.resolve(account);
-        }
-    }
-
     private ensureEmailNotInUse(email: string): Promise<boolean> {
         return this.db('user_account')
             .select('*')
@@ -180,5 +168,42 @@ export class AuthenticationService {
                     return true;
                 }
             });
+    }
+
+    private ensureVerifiedEmail(account: UserAccount): Promise<UserAccount> {
+        if (account.verified_email_at < account.changed_email_at) {
+            return Promise.reject(AuthenticationErrors.NOT_VERIFIED);
+        } else {
+            return Promise.resolve(account);
+        }
+    }
+
+    private ensureSamePassword(account: UserAccount, password: string): Promise<UserAccount> {
+        if (!bcrypt.compareSync(password, account.hashpass)) {
+            return this.updateAccount(account.id, { failed_attempts: account.failed_attempts + 1 })
+                .then(() => Promise.reject(AuthenticationErrors.WRONG_PASSWORD));
+        } else {
+            return this.updateAccount(account.id, { failed_attempts: 0 })
+                .then(() => account);
+        }
+    }
+
+    private ensureOutOfFailedAttemptsDelay(account: UserAccount): Promise<UserAccount> {
+        const reachedMaxFailedAttempts = account.failed_attempts >= this.config.maxFailedAttempts;
+        const inFailedAttemptsDelay = new Date().getTime() < (account.failed_attempt_at + this.config.delayOnMaxFailedAttempts);
+
+        if (reachedMaxFailedAttempts && inFailedAttemptsDelay) {
+            return Promise.reject(AuthenticationErrors.FAILED_ATTEMPTS_DELAY);
+        } else {
+            return Promise.resolve(account);
+        }
+    }
+
+    private ensureValidResetKey(account: UserAccount): Promise<UserAccount> {
+        if (new Date().getTime() > account.reset_expire_at) {
+            return Promise.reject(AuthenticationErrors.EXPIRED_RESET_KEY);
+        } else {
+            return Promise.resolve(account);
+        }
     }
 }

@@ -3,10 +3,11 @@ import * as Knex from 'knex';
 import * as Promise from 'bluebird';
 export declare const AuthenticationErrors: {
     EMAIL_IN_USE: string;
+    EXPIRED_RESET_KEY: string;
+    FAILED_ATTEMPTS_DELAY: string;
     NOT_FOUND: string;
     NOT_VERIFIED: string;
     WRONG_PASSWORD: string;
-    EXPIRED_RESET_KEY: string;
 };
 export interface UserAccount {
     id: string;
@@ -14,6 +15,7 @@ export interface UserAccount {
     hashpass: string;
     reset_key: string;
     failed_attempts: number;
+    failed_attempt_at: number;
     verified_email_at: number;
     changed_email_at: number;
     reset_expire_at: number;
@@ -41,7 +43,9 @@ export declare class AuthenticationService {
     private createAccount(email, password);
     private updateAccount(id, fields);
     private findOne(fields);
-    private ensureSamePassword(account, password);
-    private ensureVerifiedEmail(account);
     private ensureEmailNotInUse(email);
+    private ensureVerifiedEmail(account);
+    private ensureSamePassword(account, password);
+    private ensureOutOfFailedAttemptsDelay(account);
+    private ensureValidResetKey(account);
 }
