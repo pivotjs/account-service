@@ -16,12 +16,18 @@ export interface UserAccount {
     email: string;
     hashpass: string;
     reset_key: string;
+    failed_attempts: number;
     verified_email_at: number;
     changed_email_at: number;
     reset_expire_at: number;
     created_at: number;
     updated_at: number;
 };
+
+interface Config {
+    maxFailedAttempts: number;
+    delayOnMaxFailedAttempts: number;
+}
 
 export class AuthenticationService {
     private db: any;
@@ -33,10 +39,10 @@ export class AuthenticationService {
     initialize(): Promise<void> {
         return this.db.schema.createTableIfNotExists('user_account', (table) => {
             table.string('id').primary();
-            table.string('name');
             table.string('email').unique().notNullable();
             table.string('hashpass').notNullable();
             table.string('reset_key').unique().notNullable();
+            table.integer('failed_attempts').notNullable();
             table.timestamp('verified_email_at');
             table.timestamp('changed_email_at');
             table.timestamp('reset_expire_at');
@@ -63,54 +69,33 @@ export class AuthenticationService {
 
     signin(email: string, password: string, options = { mustHaveEmailVerified: false }): Promise<UserAccount> {
         return this.findOne({ email })
-            .then((account: UserAccount) => this.ensureSamePassword(account, password))
-            .then((account: UserAccount) => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account);
+            .then((account: UserAccount) => {
+                return this.ensureSamePassword(account, password)
+                    .then(() => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account)
+                    .then(() => this.updateAccount(account.id, { failed_attempts: 0 }))
+                    .then(() => account);
+            });
     }
 
     changeEmail(id: string, password: string, newEmail: string) {
+        const now = new Date().getTime();
         return this.findOne({ id })
             .then((account: UserAccount) => this.ensureSamePassword(account, password))
             .then((account: UserAccount) => this.ensureEmailNotInUse(newEmail))
-            .then(() => {
-                const now = new Date().getTime();
-                return this.db('user_account')
-                    .where('id', id)
-                    .update({
-                        email: newEmail,
-                        changed_email_at: now,
-                        updated_at: now,
-                    });
-            });
+            .then((account: UserAccount) => this.updateAccount(id, { email: newEmail, changed_email_at: now }));
     }
 
     changePassword(id: string, password: string, newPassword: string) {
         return this.findOne({ id })
             .then((account: UserAccount) => this.ensureSamePassword(account, password))
-            .then(() => {
-                return this.db('user_account')
-                    .where('id', id)
-                    .update({
-                        hashpass: bcrypt.hashSync(newPassword, 10),
-                        updated_at: new Date().getTime(),
-                    });
-            });
+            .then((account: UserAccount) => this.updateAccount(id, { hashpass: bcrypt.hashSync(newPassword, 10) }));
     }
 
     generateResetKey(email: string, expireAt: number): Promise<string> {
+        const resetKey = shortid.generate();
         return this.findOne({ email })
-            .then((account: UserAccount) => {
-                const resetKey = shortid.generate();
-                return this.db('user_account')
-                    .where('id', account.id)
-                    .update({
-                        reset_key: resetKey,
-                        reset_expire_at: expireAt,
-                        updated_at: new Date().getTime(),
-                    })
-                    .then(() => {
-                        return Promise.resolve(resetKey);
-                    });
-            });
+            .then((account: UserAccount) => this.updateAccount(account.id, { reset_key: resetKey, reset_expire_at: expireAt }))
+            .then(() => resetKey);
     }
 
     resetPassword(email: string, resetKey: string, newPassword: string) {
@@ -119,12 +104,7 @@ export class AuthenticationService {
                 if (new Date().getTime() > account.reset_expire_at) {
                     return Promise.reject(AuthenticationErrors.EXPIRED_RESET_KEY);
                 } else {
-                    return this.db('user_account')
-                        .where('id', account.id)
-                        .update({
-                            hashpass: bcrypt.hashSync(newPassword, 10),
-                            updated_at: new Date().getTime(),
-                        });
+                    return this.updateAccount(account.id, { hashpass: bcrypt.hashSync(newPassword, 10) });
                 }
             });
     }
@@ -135,6 +115,7 @@ export class AuthenticationService {
             id: shortid.generate(),
             email,
             hashpass: bcrypt.hashSync(password, 10),
+            failed_attempts: 0,
             reset_key: shortid.generate(),
             verified_email_at: 0,
             changed_email_at: now,
@@ -145,10 +126,18 @@ export class AuthenticationService {
         return this.db('user_account').insert(account).then(() => account.id);
     }
 
-    private findOne(attributes: { [key: string]: any }) {
+    private updateAccount(id: string, fields: { [key: string]: any }) {
+        return this.db('user_account')
+            .where('id', id)
+            .update(Object.assign({}, fields, {
+                updated_at: new Date().getTime(),
+            }));
+    }
+
+    private findOne(fields: { [key: string]: any }) {
         return this.db('user_account')
             .select('*')
-            .where(attributes)
+            .where(fields)
             .then((accounts: UserAccount[]) => {
                 if (accounts.length !== 1) {
                     return Promise.reject(AuthenticationErrors.NOT_FOUND);
@@ -160,7 +149,8 @@ export class AuthenticationService {
 
     private ensureSamePassword(account: UserAccount, password: string): Promise<UserAccount> {
         if (!bcrypt.compareSync(password, account.hashpass)) {
-            return Promise.reject(AuthenticationErrors.WRONG_PASSWORD);
+            return this.updateAccount(account.id, { failed_attempts: account.failed_attempts + 1 })
+                .then(() => Promise.reject(AuthenticationErrors.WRONG_PASSWORD));
         } else {
             return Promise.resolve(account);
         }

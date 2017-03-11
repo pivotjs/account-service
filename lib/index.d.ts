@@ -13,6 +13,7 @@ export interface UserAccount {
     email: string;
     hashpass: string;
     reset_key: string;
+    failed_attempts: number;
     verified_email_at: number;
     changed_email_at: number;
     reset_expire_at: number;
@@ -33,7 +34,8 @@ export declare class AuthenticationService {
     generateResetKey(email: string, expireAt: number): Promise<string>;
     resetPassword(email: string, resetKey: string, newPassword: string): any;
     private createAccount(email, password);
-    private findOne(attributes);
+    private updateAccount(id, fields);
+    private findOne(fields);
     private ensureSamePassword(account, password);
     private ensureVerifiedEmail(account);
     private ensureEmailNotInUse(email);
