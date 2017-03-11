@@ -2,16 +2,10 @@
 import * as Knex from 'knex';
 import * as Promise from 'bluebird';
 export declare const Errors: {
-    signup: {
-        EMAIL_IN_USE: string;
-    };
-    find: {
-        NOT_FOUND: string;
-    };
-    signin: {
-        NOT_VERIFIED: string;
-        WRONG_PASSWORD: string;
-    };
+    EMAIL_IN_USE: string;
+    NOT_FOUND: string;
+    NOT_VERIFIED: string;
+    WRONG_PASSWORD: string;
 };
 export interface Account {
     id: string;

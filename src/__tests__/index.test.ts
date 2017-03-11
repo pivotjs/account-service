@@ -72,7 +72,7 @@ describe('AccountService', () => {
                 const email = 'account-0@example.com';
                 const password = '123';
                 return service.signup(email, password).catch((err) => {
-                    expect(err).toBe(Errors.signup.EMAIL_IN_USE);
+                    expect(err).toBe(Errors.EMAIL_IN_USE);
                 });
             });
         });
@@ -102,7 +102,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'pass-0')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.find.NOT_FOUND);
+                        expect(err).toBe(Errors.NOT_FOUND);
                     });
             });
         });
@@ -111,7 +111,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin(accounts[0].email, 'wrong-password')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.signin.WRONG_PASSWORD);
+                        expect(err).toBe(Errors.WRONG_PASSWORD);
                     });
             });
         });
@@ -119,7 +119,7 @@ describe('AccountService', () => {
         describe('with the wrong email and password', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'wrong-password').catch((err: string) => {
-                    expect(err).toBe(Errors.find.NOT_FOUND);
+                    expect(err).toBe(Errors.NOT_FOUND);
                 });
             });
         });
@@ -128,7 +128,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin(accounts[0].email, 'pass-0', { mustBeVerified: true })
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.signin.NOT_VERIFIED);
+                        expect(err).toBe(Errors.NOT_VERIFIED);
                     });
             });
         });

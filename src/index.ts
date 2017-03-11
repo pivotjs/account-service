@@ -4,16 +4,10 @@ import * as bcrypt from 'bcrypt';
 import * as shortid from 'shortid';
 
 export const Errors = {
-    signup: {
-        EMAIL_IN_USE: 'EMAIL_IN_USE',
-    },
-    find: {
-        NOT_FOUND: 'NOT_FOUND',
-    },
-    signin: {
-        NOT_VERIFIED: 'NOT_VERIFIED',
-        WRONG_PASSWORD: 'WRONG_PASSWORD',
-    },
+    EMAIL_IN_USE: 'EMAIL_IN_USE',
+    NOT_FOUND: 'NOT_FOUND',
+    NOT_VERIFIED: 'NOT_VERIFIED',
+    WRONG_PASSWORD: 'WRONG_PASSWORD',
 }
 
 export interface Account {
@@ -51,7 +45,7 @@ export class AccountService {
             .where('email', email)
             .then((records: Account[]) => {
                 if (records.length > 0) {
-                    return Promise.reject(Errors.signup.EMAIL_IN_USE);
+                    return Promise.reject(Errors.EMAIL_IN_USE);
                 } else {
                     return this.createAccount(email, password);
                 }
@@ -120,7 +114,7 @@ export class AccountService {
             .where(attributes)
             .then((accounts: Account[]) => {
                 if (accounts.length !== 1) {
-                    return Promise.reject(Errors.find.NOT_FOUND);
+                    return Promise.reject(Errors.NOT_FOUND);
                 } else {
                     return accounts[0];
                 }
@@ -129,7 +123,7 @@ export class AccountService {
 
     private validatePassword(account: Account, password: string): Promise<Account> {
         if (!bcrypt.compareSync(password, account.hashpass)) {
-            return Promise.reject(Errors.signin.WRONG_PASSWORD);
+            return Promise.reject(Errors.WRONG_PASSWORD);
         } else {
             return Promise.resolve(account);
         }
@@ -137,7 +131,7 @@ export class AccountService {
 
     private validateIsVerified(account: Account, mustBeVerified = false): Promise<Account> {
         if (mustBeVerified === true && account.verified_at < account.changed_email_at) {
-            return Promise.reject(Errors.signin.NOT_VERIFIED);
+            return Promise.reject(Errors.NOT_VERIFIED);
         } else {
             return Promise.resolve(account);
         }
