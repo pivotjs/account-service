@@ -1,6 +1,6 @@
 import * as Knex from 'knex';
 import * as bcrypt from 'bcrypt';
-import { Account, AccountService } from '..';
+import { Account, AccountService, Errors } from '..';
 
 const db = Knex({
     "debug": false,
@@ -18,14 +18,17 @@ const now = new Date().getTime();
 const accounts: Account[] = [{
     id: 'account-1',
     email: 'account-1@example.com',
-    hashpass: '123',
+    hashpass: bcrypt.hashSync('pass-1', 10),
+    verified_at: 0,
+    changed_email_at: now,
     created_at: now,
     updated_at: now,
 }, {
     id: 'account-2',
     email: 'account-2@example.com',
-    hashpass: '123',
+    hashpass: bcrypt.hashSync('pass-2', 10),
     verified_at: now,
+    changed_email_at: now,    
     created_at: now,
     updated_at: now,
 }];
@@ -69,7 +72,7 @@ describe('AccountService', () => {
                 const email = 'account-1@example.com';
                 const password = '123';
                 return service.signup(email, password).catch((err) => {
-                    expect(err).toBe('EMAIL_IN_USE');
+                    expect(err).toBe(Errors.signup.EMAIL_IN_USE);
                 });
             });
         });
@@ -89,6 +92,44 @@ describe('AccountService', () => {
                             expect(_accounts[0].verified_at).toBeGreaterThan(0);
                             expect(_accounts[0].verified_at / (60 * 1000)).toBeCloseTo(new Date().getTime() / (60 * 1000))
                         });
+                });
+            });
+        });
+    });
+
+    describe('.signin', () => {
+        describe('with the right email/password combination', () => {
+            it('should signin', () => {
+                service.signin(accounts[0].email, 'pass-1')
+                    .then((_account: Account) => {
+                        expect(_account.id).toBe(accounts[0].id);
+                        expect(_account.email).toBe(accounts[0].email);
+                    });
+            });
+        });
+
+        describe('with the wrong email', () => {
+            it('should fail', () => {
+                service.signin('wrong-email@example.com', 'pass-1')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.signin.ACCOUNT_NOT_FOUND);
+                    });
+            });
+        });
+
+        describe('with the wrong password', () => {
+            it('should fail', () => {
+                service.signin(accounts[0].email, 'wrong-password')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.signin.WRONG_PASSWORD);
+                    });
+            });
+        });
+
+        describe('with the wrong email and password', () => {
+            it('should fail', () => {
+                service.signin('wrong-email@example.com', 'wrong-password').catch((err: string) => {
+                    expect(err).toBe(Errors.signin.ACCOUNT_NOT_FOUND);
                 });
             });
         });
