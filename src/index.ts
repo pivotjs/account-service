@@ -40,15 +40,9 @@ export class AccountService {
     }
 
     signup(email: string, password: string): Promise<string> {
-        return this.db('account')
-            .select('*')
-            .where('email', email)
-            .then((records: Account[]) => {
-                if (records.length > 0) {
-                    return Promise.reject(Errors.EMAIL_IN_USE);
-                } else {
-                    return this.createAccount(email, password);
-                }
+        return this.ensureEmailNotInUse(email)
+            .then(() => {
+                return this.createAccount(email, password);
             });
     }
 
@@ -64,19 +58,20 @@ export class AccountService {
 
     signin(email: string, password: string, options = { mustBeVerified: false }): Promise<Account> {
         return this.findOne({ email })
-            .then((account: Account) => this.validatePassword(account, password))
-            .then((account: Account) => this.validateIsVerified(account, options.mustBeVerified));
+            .then((account: Account) => this.ensureSamePassword(account, password))
+            .then((account: Account) => options.mustBeVerified ? this.ensureVerified(account) : account);
     }
 
     changeEmail(id: string, password: string, newEmail: string) {
         return this.findOne({ id })
-            .then((account: Account) => this.validatePassword(account, password))
-            .then((account: Account) => {
+            .then((account: Account) => this.ensureSamePassword(account, password))
+            .then((account: Account) => this.ensureEmailNotInUse(newEmail))
+            .then(() => {
                 const now = new Date().getTime();
                 return this.db('account')
                     .where('id', id)
                     .update({
-                        verified_at: now,
+                        email: newEmail,
                         updated_at: now,
                     });
             });
@@ -121,7 +116,7 @@ export class AccountService {
             });
     }
 
-    private validatePassword(account: Account, password: string): Promise<Account> {
+    private ensureSamePassword(account: Account, password: string): Promise<Account> {
         if (!bcrypt.compareSync(password, account.hashpass)) {
             return Promise.reject(Errors.WRONG_PASSWORD);
         } else {
@@ -129,11 +124,24 @@ export class AccountService {
         }
     }
 
-    private validateIsVerified(account: Account, mustBeVerified = false): Promise<Account> {
-        if (mustBeVerified === true && account.verified_at < account.changed_email_at) {
+    private ensureVerified(account: Account): Promise<Account> {
+        if (account.verified_at < account.changed_email_at) {
             return Promise.reject(Errors.NOT_VERIFIED);
         } else {
             return Promise.resolve(account);
         }
+    }
+
+    private ensureEmailNotInUse(email: string): Promise<boolean> {
+        return this.db('account')
+            .select('*')
+            .where('email', email)
+            .then((accounts: Account[]) => {
+                if (accounts.length > 0) {
+                    return Promise.reject(Errors.EMAIL_IN_USE);
+                } else {
+                    return true;
+                }
+            });
     }
 }

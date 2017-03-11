@@ -153,4 +153,46 @@ describe('AccountService', () => {
             });
         });
     });
+
+    describe('.changeEmail', () => {
+        describe('with the wrong id', () => {
+            it('should fail', () => {
+                return service.changeEmail('wrong-id', 'pass-0', 'account-00@example.com')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.NOT_FOUND);
+                    });
+            });
+        });
+
+        describe('with the wrong password', () => {
+            it('should fail', () => {
+                return service.changeEmail(accounts[0].id, 'wrong-pass', 'account-00@example.com')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.WRONG_PASSWORD);
+                    });
+            });
+        });
+
+        describe('with the right id/password, to an email already in use', () => {
+            it('should fail', () => {
+                return service.changeEmail(accounts[0].id, 'pass-0', 'account-1@example.com')
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.EMAIL_IN_USE);
+                    });
+            });
+        });
+        
+        describe('with the right id/password, to an email not in use', () => {
+            it('should change the email', () => {
+                return service.changeEmail(accounts[0].id, 'pass-0', 'account-00@example.com')
+                    .then(() => {
+                        return db('account').where('id', accounts[0].id)
+                            .then((_accounts: Account[]) => {
+                                expect(_accounts.length).toBe(1);
+                                expect(_accounts[0].email).toBe('account-00@example.com');
+                            });
+                    });
+            });
+        });
+    });
 });

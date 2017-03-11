@@ -31,6 +31,7 @@ export declare class AccountService {
     resetPassword(resetKey: string, newPassword: string): void;
     private createAccount(email, password);
     private findOne(attributes);
-    private validatePassword(account, password);
-    private validateIsVerified(account, mustBeVerified?);
+    private ensureSamePassword(account, password);
+    private ensureVerified(account);
+    private ensureEmailNotInUse(email);
 }
