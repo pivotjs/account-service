@@ -16,19 +16,19 @@ const service = new AccountService(db);
 const now = new Date().getTime();
 
 const accounts: Account[] = [{
-    id: 'account-1',
-    email: 'account-1@example.com',
-    hashpass: bcrypt.hashSync('pass-1', 10),
+    id: 'account-0',
+    email: 'account-0@example.com',
+    hashpass: bcrypt.hashSync('pass-0', 10),
     verified_at: 0,
     changed_email_at: now,
     created_at: now,
     updated_at: now,
 }, {
-    id: 'account-2',
-    email: 'account-2@example.com',
-    hashpass: bcrypt.hashSync('pass-2', 10),
+    id: 'account-1',
+    email: 'account-1@example.com',
+    hashpass: bcrypt.hashSync('pass-1', 10),
     verified_at: now,
-    changed_email_at: now,    
+    changed_email_at: now,
     created_at: now,
     updated_at: now,
 }];
@@ -69,7 +69,7 @@ describe('AccountService', () => {
 
         describe('when the email is already in use', () => {
             it('should not a new account', () => {
-                const email = 'account-1@example.com';
+                const email = 'account-0@example.com';
                 const password = '123';
                 return service.signup(email, password).catch((err) => {
                     expect(err).toBe(Errors.signup.EMAIL_IN_USE);
@@ -98,19 +98,9 @@ describe('AccountService', () => {
     });
 
     describe('.signin', () => {
-        describe('with the right email/password combination', () => {
-            it('should signin', () => {
-                service.signin(accounts[0].email, 'pass-1')
-                    .then((_account: Account) => {
-                        expect(_account.id).toBe(accounts[0].id);
-                        expect(_account.email).toBe(accounts[0].email);
-                    });
-            });
-        });
-
         describe('with the wrong email', () => {
             it('should fail', () => {
-                service.signin('wrong-email@example.com', 'pass-1')
+                service.signin('wrong-email@example.com', 'pass-0')
                     .catch((err: string) => {
                         expect(err).toBe(Errors.signin.ACCOUNT_NOT_FOUND);
                     });
@@ -131,6 +121,35 @@ describe('AccountService', () => {
                 service.signin('wrong-email@example.com', 'wrong-password').catch((err: string) => {
                     expect(err).toBe(Errors.signin.ACCOUNT_NOT_FOUND);
                 });
+            });
+        });
+
+        describe('with the right email/password of an unverified account, requiring a verified account', () => {
+            it('should fail', () => {
+                service.signin(accounts[0].email, 'pass-0', { isVerified: true })
+                    .catch((err: string) => {
+                        expect(err).toBe(Errors.signin.ACCOUNT_NOT_VERIFIED);
+                    });
+            });
+        });
+
+        describe('with the right email/password of a verified account, requiring a verified account', () => {
+            it('should signin', () => {
+                service.signin(accounts[1].email, 'pass-1', { isVerified: true })
+                    .then((_account: Account) => {
+                        expect(_account.id).toBe(accounts[1].id);
+                        expect(_account.email).toBe(accounts[1].email);
+                    });
+            });
+        });
+
+        describe('with the right email/password of an unverified account, not requiring a verified account', () => {
+            it('should signin', () => {
+                service.signin(accounts[0].email, 'pass-0')
+                    .then((_account: Account) => {
+                        expect(_account.id).toBe(accounts[0].id);
+                        expect(_account.email).toBe(accounts[0].email);
+                    });
             });
         });
     });

@@ -6,8 +6,9 @@ export declare const Errors: {
         EMAIL_IN_USE: string;
     };
     signin: {
-        ACCOUNT_NOT_FOUND: string;
         WRONG_PASSWORD: string;
+        ACCOUNT_NOT_FOUND: string;
+        ACCOUNT_NOT_VERIFIED: string;
     };
 };
 export interface Account {
@@ -25,6 +26,8 @@ export declare class AccountService {
     initialize(): Promise<void>;
     signup(email: string, password: string): Promise<string>;
     verify(email: string): any;
-    signin(email: string, password: string): Promise<Account>;
+    signin(email: string, password: string, options?: {
+        isVerified: boolean;
+    }): Promise<Account>;
     private createAccount(email, password);
 }

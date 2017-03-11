@@ -8,8 +8,9 @@ export const Errors = {
         EMAIL_IN_USE: 'EMAIL_IN_USE',
     },
     signin: {
-        ACCOUNT_NOT_FOUND: 'ACCOUNT_NOT_FOUND',
         WRONG_PASSWORD: 'WRONG_PASSWORD',
+        ACCOUNT_NOT_FOUND: 'ACCOUNT_NOT_FOUND',
+        ACCOUNT_NOT_VERIFIED: 'ACCOUNT_NOT_VERIFIED',
     },
 }
 
@@ -65,7 +66,7 @@ export class AccountService {
             });
     }
 
-    signin(email: string, password: string): Promise<Account> {
+    signin(email: string, password: string, options = { isVerified: false }): Promise<Account> {
         return this.db('account')
             .select('*')
             .where('email', email)
@@ -74,6 +75,8 @@ export class AccountService {
                     return Promise.reject(Errors.signin.ACCOUNT_NOT_FOUND);
                 } else if (!bcrypt.compareSync(password, accounts[0].hashpass)) {
                     return Promise.reject(Errors.signin.WRONG_PASSWORD);
+                } else if (options.isVerified === true && accounts[0].verified_at < accounts[0].changed_email_at) {
+                    return Promise.reject(Errors.signin.ACCOUNT_NOT_VERIFIED);
                 } else {
                     return accounts[0];
                 }
