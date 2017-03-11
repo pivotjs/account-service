@@ -11,7 +11,10 @@ const db = Knex({
     }
 });
 
-const service = new AuthenticationService(db);
+const service = new AuthenticationService({
+    maxFailedAttempts: 3,
+    delayOnMaxFailedAttempts: 10,
+}, db);
 
 const now = new Date().getTime();
 

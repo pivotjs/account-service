@@ -24,15 +24,17 @@ export interface UserAccount {
     updated_at: number;
 };
 
-interface Config {
+export interface AuthenticationConfig {
     maxFailedAttempts: number;
     delayOnMaxFailedAttempts: number;
 }
 
 export class AuthenticationService {
-    private db: any;
+    private config: AuthenticationConfig;
+    private db: Knex;
 
-    constructor(db: Knex) {
+    constructor(config: AuthenticationConfig, db: Knex) {
+        this.config = config;
         this.db = db;
     }
 
@@ -80,9 +82,11 @@ export class AuthenticationService {
     changeEmail(id: string, password: string, newEmail: string) {
         const now = new Date().getTime();
         return this.findOne({ id })
-            .then((account: UserAccount) => this.ensureSamePassword(account, password))
-            .then((account: UserAccount) => this.ensureEmailNotInUse(newEmail))
-            .then((account: UserAccount) => this.updateAccount(id, { email: newEmail, changed_email_at: now }));
+            .then((account: UserAccount) => {
+                return this.ensureSamePassword(account, password)
+                    .then(() => this.ensureEmailNotInUse(newEmail))
+                    .then(() => this.updateAccount(id, { email: newEmail, changed_email_at: now }));
+            });
     }
 
     changePassword(id: string, password: string, newPassword: string) {
@@ -152,7 +156,8 @@ export class AuthenticationService {
             return this.updateAccount(account.id, { failed_attempts: account.failed_attempts + 1 })
                 .then(() => Promise.reject(AuthenticationErrors.WRONG_PASSWORD));
         } else {
-            return Promise.resolve(account);
+            return this.updateAccount(account.id, { failed_attempts: 0 })
+                .then(() => account);
         }
     }
 
