@@ -102,7 +102,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'pass-0')
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.signin.ACCOUNT_NOT_FOUND);
+                        expect(err).toBe(Errors.signin.NOT_FOUND);
                     });
             });
         });
@@ -119,7 +119,7 @@ describe('AccountService', () => {
         describe('with the wrong email and password', () => {
             it('should fail', () => {
                 service.signin('wrong-email@example.com', 'wrong-password').catch((err: string) => {
-                    expect(err).toBe(Errors.signin.ACCOUNT_NOT_FOUND);
+                    expect(err).toBe(Errors.signin.NOT_FOUND);
                 });
             });
         });
@@ -128,7 +128,7 @@ describe('AccountService', () => {
             it('should fail', () => {
                 service.signin(accounts[0].email, 'pass-0', { isVerified: true })
                     .catch((err: string) => {
-                        expect(err).toBe(Errors.signin.ACCOUNT_NOT_VERIFIED);
+                        expect(err).toBe(Errors.signin.NOT_VERIFIED);
                     });
             });
         });

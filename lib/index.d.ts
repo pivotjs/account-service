@@ -6,9 +6,9 @@ export declare const Errors: {
         EMAIL_IN_USE: string;
     };
     signin: {
+        NOT_FOUND: string;
+        NOT_VERIFIED: string;
         WRONG_PASSWORD: string;
-        ACCOUNT_NOT_FOUND: string;
-        ACCOUNT_NOT_VERIFIED: string;
     };
 };
 export interface Account {
