@@ -21,17 +21,19 @@ export class AccountService {
     }
 
     initialize(): Promise<void> {
+        console.log('initialize');
+
         return this.db.schema.createTableIfNotExists('account', (table) => {
             table.string('id').primary();
             table.string('name');
             table.string('email').unique().notNullable();
-            table.string('hashpass').unique().notNullable();
+            table.string('hashpass').notNullable();
             table.timestamp('verified_at');
             table.timestamps();
         });
     }
 
-    signup(email: string, password: string): Promise<Account> {
+    signup(email: string, password: string): Promise<string> {
         return this.db('account')
             .select('*')
             .where('email', email)
@@ -39,14 +41,13 @@ export class AccountService {
                 if (records.length > 0) {
                     return Promise.reject('EMAIL_IN_USE');
                 } else {
-                    return this.createAccount(email, password)
+                    return this.createAccount(email, password);
                 }
-            }).then((account: Account) => {
-                return { accountId: account.id }
-            });
+            })
+
     }
 
-    private createAccount(email: string, password: string): Promise<Account> {
+    private createAccount(email: string, password: string): Promise<string> {
         const now = new Date();
         const account: Account = {
             id: shortid.generate(),
@@ -55,8 +56,6 @@ export class AccountService {
             created_at: now,
             updated_at: now,
         };
-        return this.db('account').insert(account).then(() => {
-            return account;
-        });
+        return this.db('account').insert(account).then(() => account.id);
     }
 }

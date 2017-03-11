@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index",
   "scripts": {
-    "test": "NODE_ENV=test jest",
+    "test": "NODE_ENV=test jest --coverage",
     "_pretest": "tsc",
     "compile": "tsc",
     "prepublish": "npm run compile"

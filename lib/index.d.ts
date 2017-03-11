@@ -14,6 +14,6 @@ export declare class AccountService {
     private db;
     constructor(db: Knex);
     initialize(): Promise<void>;
-    signup(email: string, password: string): Promise<Account>;
+    signup(email: string, password: string): Promise<string>;
     private createAccount(email, password);
 }
