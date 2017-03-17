@@ -31,10 +31,12 @@ function createUserAccount(n: number): UserAccount {
     }
 }
 
+const MINUTE = 60 * 1000;
+
 const defaultOptions: AuthenticationServiceOptions = {
     requireVerifiedEmail: false,
     maxFailedAttempts: 3,
-    maxFailedAttemptsDelay: 30 * 60 * 1000,
+    maxFailedAttemptsDelay: 30 * MINUTE,
 }
 
 describe('AuthenticationService', () => {
@@ -132,7 +134,7 @@ describe('AuthenticationService', () => {
 
         describe('with the wrong email', () => {
             it('should fail', () => {
-                service.signin('wrong-email@example.com', 'pass-1', defaultOptions)
+                return service.signin('wrong-email@example.com', 'pass-1', defaultOptions)
                     .catch((err: string) => {
                         expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
@@ -141,7 +143,7 @@ describe('AuthenticationService', () => {
 
         describe('with the wrong password', () => {
             it('should fail', () => {
-                service.signin(account1.email, 'wrong-password', defaultOptions)
+                return service.signin(account1.email, 'wrong-password', defaultOptions)
                     .catch((err: string) => {
                         expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
                     });
@@ -150,7 +152,7 @@ describe('AuthenticationService', () => {
 
         describe('with the wrong email and password', () => {
             it('should fail', () => {
-                service.signin('wrong-email@example.com', 'wrong-password', defaultOptions)
+                return service.signin('wrong-email@example.com', 'wrong-password', defaultOptions)
                     .catch((err: string) => {
                         expect(err).toBe(AuthenticationErrors.NOT_FOUND);
                     });
@@ -160,7 +162,7 @@ describe('AuthenticationService', () => {
         describe('with the right email/password of an unverified account, requiring a verified account', () => {
             it('should fail', () => {
                 const options = Object.assign({}, defaultOptions, { requireVerifiedEmail: true });
-                service.signin(account1.email, 'pass-1', options)
+                return service.signin(account1.email, 'pass-1', options)
                     .catch((err: string) => {
                         expect(err).toBe(AuthenticationErrors.NOT_VERIFIED);
                     });
@@ -169,7 +171,7 @@ describe('AuthenticationService', () => {
 
         describe('with the right email/password of an unverified account, not requiring a verified account', () => {
             it('should signin', () => {
-                service.signin(account1.email, 'pass-1', defaultOptions)
+                return service.signin(account1.email, 'pass-1', defaultOptions)
                     .then((_account: UserAccount) => {
                         expect(_account.id).toBe(account1.id);
                         expect(_account.email).toBe(account1.email);
@@ -183,7 +185,7 @@ describe('AuthenticationService', () => {
         describe('with the right email/password of a verified account, requiring a verified account', () => {
             it('should signin', () => {
                 const options = Object.assign({}, defaultOptions, { requireVerifiedEmail: true });
-                service.signin(account2.email, 'pass-2', options)
+                return service.signin(account2.email, 'pass-2', options)
                     .then((_account: UserAccount) => {
                         expect(_account.id).toBe(account2.id);
                         expect(_account.email).toBe(account2.email);
@@ -384,4 +386,167 @@ describe('AuthenticationService', () => {
             });
         });
     });
+
+    describe('brute force attack', () => {
+        const expectUserAccountState = (id, failed_attempts: number, max_failed_attempts_at: number) => {
+            return db('user_account')
+                .where('id', id)
+                .then((_accounts: UserAccount[]) => {
+                    expect(_accounts.length).toBe(1);
+                    expect(_accounts[0].failed_attempts).toBe(failed_attempts);
+                    expect(_accounts[0].max_failed_attempts_at / 1000).toBeCloseTo(max_failed_attempts_at / 1000);
+                });
+        }
+
+        describe('.login first attempt with the wrong password', () => {
+            let account: UserAccount;
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                return db('user_account').insert(account);
+            });
+
+            it('should increment the failed attemps', () => {
+                return service.signin(account.email, 'wrong-password', defaultOptions)
+                    .catch((err: string) => {
+                        expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
+                        return expectUserAccountState(account.id, 1, 0);
+                    });
+            });
+        });
+
+        describe('.login max attempts with the wrong password', () => {
+            let account: UserAccount;
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                account.failed_attempts = defaultOptions.maxFailedAttempts - 1;
+                return db('user_account').insert(account);
+            });
+
+            it('should increment the failed attemps and update the failed attempt timestamp', () => {
+                return service.signin(account.email, 'wrong-password', defaultOptions)
+                    .catch((err: string) => {
+                        expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
+                        return expectUserAccountState(account.id, defaultOptions.maxFailedAttempts, new Date().getTime());
+                    });
+            });
+        });
+
+        describe('.login during the delay', () => {
+            let account: UserAccount;
+            const past = new Date().getTime() - (10 * MINUTE);
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                account.failed_attempts = defaultOptions.maxFailedAttempts;
+                account.max_failed_attempts_at = past;
+                return db('user_account').insert(account);
+            });
+
+            it('should not try to login', () => {
+                return service.signin(account.email, 'wrong-password', defaultOptions)
+                    .catch((err: string) => {
+                        expect(err).toBe(AuthenticationErrors.MAX_FAILED_ATTEMPTS_DELAY);
+                        return expectUserAccountState(account.id, defaultOptions.maxFailedAttempts, past);
+                    });
+            });
+        });
+
+        describe('.login after the delay with the wrong password', () => {
+            let account: UserAccount;
+            const past = new Date().getTime() - defaultOptions.maxFailedAttemptsDelay - 1;
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                account.failed_attempts = defaultOptions.maxFailedAttempts;
+                account.max_failed_attempts_at = past;
+                return db('user_account').insert(account);
+            });
+
+            it('should increment the failed attemps and update the failed attempt timestamp', () => {
+                return service.signin(account.email, 'wrong-password', defaultOptions)
+                    .catch((err: string) => {
+                        expect(err).toBe(AuthenticationErrors.WRONG_PASSWORD);
+                        return expectUserAccountState(account.id, defaultOptions.maxFailedAttempts + 1, new Date().getTime());
+                    });
+            });
+        });
+
+        describe('.login after the delay, with the right password', () => {
+            let account: UserAccount;
+            const past = new Date().getTime() - defaultOptions.maxFailedAttemptsDelay - 1;
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                account.failed_attempts = defaultOptions.maxFailedAttempts;
+                account.max_failed_attempts_at = past;
+                return db('user_account').insert(account);
+            });
+
+            it('should login and clear the failed attempts state', () => {
+                return service.signin(account.email, 'pass-1', defaultOptions)
+                    .then((_account: UserAccount) => {
+                        expect(_account.id).toBe(account.id);
+                        expect(_account.email).toBe(account.email);
+                        return expectUserAccountState(account.id, 0, 0);
+                    })
+                    .catch((err) => {
+                        expect(err).toBeUndefined();
+                    });
+            });
+        });
+
+
+        describe('.resetPassword during the delay', () => {
+            let account: UserAccount;
+            const past = new Date().getTime() - (10 * MINUTE);
+            const future = new Date().getTime() + (10 * MINUTE);
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                account.reset_expire_at = future;
+                account.failed_attempts = defaultOptions.maxFailedAttempts;
+                account.max_failed_attempts_at = past;
+                return db('user_account').insert(account);
+            });
+
+            it('should not reset the password', () => {
+                return service.resetPassword(account.email, account.reset_key, 'pass-222', defaultOptions)
+                    .catch((err: string) => {
+                        expect(err).toBe(AuthenticationErrors.MAX_FAILED_ATTEMPTS_DELAY);
+                        return expectUserAccountState(account.id, defaultOptions.maxFailedAttempts, past);
+                    });
+            });
+        });
+
+        describe('.resetPassword afterAll the delay', () => {
+            let account: UserAccount;
+            const past = new Date().getTime() - defaultOptions.maxFailedAttemptsDelay - 1;
+            const future = new Date().getTime() + (10 * MINUTE);
+
+            beforeEach(() => {
+                account = createUserAccount(1);
+                account.reset_expire_at = future;
+                account.failed_attempts = defaultOptions.maxFailedAttempts;
+                account.max_failed_attempts_at = past;
+                return db('user_account').insert(account);
+            });
+
+            it('should reset the password and clear the failed attempts state', () => {
+                return service.resetPassword(account.email, account.reset_key, 'pass-222', defaultOptions)
+                    .then(() => {
+                        return db('user_account').where('id', account.id)
+                            .then((_accounts: UserAccount[]) => {
+                                expect(_accounts.length).toBe(1);
+                                expect(bcrypt.compareSync('pass-222', _accounts[0].hashpass)).toBe(true);
+                                return expectUserAccountState(account.id, 0, 0);
+                            });
+                    })
+                    .catch((err) => {
+                        expect(err).toBeUndefined();
+                    });
+            });
+        });
+    })
 });
