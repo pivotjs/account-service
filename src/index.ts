@@ -6,7 +6,7 @@ import * as shortid from 'shortid';
 export const AuthenticationErrors = {
     EMAIL_IN_USE: 'EMAIL_IN_USE',
     EXPIRED_RESET_KEY: 'EXPIRED_RESET_KEY',
-    FAILED_ATTEMPTS_DELAY: 'FAILED_ATTEMPTS_DELAY',
+    MAX_FAILED_ATTEMPTS_DELAY: 'MAX_FAILED_ATTEMPTS_DELAY',
     NOT_FOUND: 'NOT_FOUND',
     NOT_VERIFIED: 'NOT_VERIFIED',
     WRONG_PASSWORD: 'WRONG_PASSWORD',
@@ -18,7 +18,7 @@ export interface UserAccount {
     hashpass: string;
     reset_key: string;
     failed_attempts: number;
-    failed_attempt_at: number;
+    max_failed_attempts_at: number;
     verified_email_at: number;
     changed_email_at: number;
     reset_expire_at: number;
@@ -26,17 +26,16 @@ export interface UserAccount {
     updated_at: number;
 };
 
-export interface AuthenticationConfig {
+export interface AuthenticationServiceOptions {
+    requireVerifiedEmail: boolean;
     maxFailedAttempts: number;
-    delayOnMaxFailedAttempts: number;
+    maxFailedAttemptsDelay: number;
 }
 
 export class AuthenticationService {
-    private config: AuthenticationConfig;
     private db: Knex;
 
-    constructor(config: AuthenticationConfig, db: Knex) {
-        this.config = config;
+    constructor(db: Knex) {
         this.db = db;
     }
 
@@ -47,7 +46,7 @@ export class AuthenticationService {
             table.string('hashpass').notNullable();
             table.string('reset_key', 14).unique().notNullable();
             table.integer('failed_attempts').notNullable();
-            table.timestamp('failed_attempt_at').notNullable();
+            table.timestamp('max_failed_attempts_at').notNullable();
             table.timestamp('verified_email_at').notNullable();
             table.timestamp('changed_email_at').notNullable();
             table.timestamp('reset_expire_at').notNullable();
@@ -72,30 +71,30 @@ export class AuthenticationService {
             });
     }
 
-    signin(email: string, password: string, options = { mustHaveEmailVerified: false }): Promise<UserAccount> {
+    signin(email: string, password: string, options: AuthenticationServiceOptions): Promise<UserAccount> {
         return this.findOne({ email })
             .then((account: UserAccount) => {
-                return this.ensureOutOfFailedAttemptsDelay(account)
-                    .then(() => this.ensureSamePassword(account, password))
-                    .then(() => options.mustHaveEmailVerified ? this.ensureVerifiedEmail(account) : account)
+                return this.ensureAfterFailedAttemptsDelay(account, options)
+                    .then(() => this.ensureSamePassword(account, password, options))
+                    .then(() => options.requireVerifiedEmail ? this.ensureVerifiedEmail(account) : account)
                     .then(() => this.updateAccount(account.id, { failed_attempts: 0 }))
                     .then(() => account);
             });
     }
 
-    changeEmail(id: string, password: string, newEmail: string) {
+    changeEmail(id: string, password: string, newEmail: string, options: AuthenticationServiceOptions) {
         const now = new Date().getTime();
         return this.findOne({ id })
             .then((account: UserAccount) => {
-                return this.ensureSamePassword(account, password)
+                return this.ensureSamePassword(account, password, options)
                     .then(() => this.ensureEmailNotInUse(newEmail))
                     .then(() => this.updateAccount(id, { email: newEmail, changed_email_at: now }));
             });
     }
 
-    changePassword(id: string, password: string, newPassword: string) {
+    changePassword(id: string, password: string, newPassword: string, options: AuthenticationServiceOptions) {
         return this.findOne({ id })
-            .then((account: UserAccount) => this.ensureSamePassword(account, password))
+            .then((account: UserAccount) => this.ensureSamePassword(account, password, options))
             .then((account: UserAccount) => this.updateAccount(id, { hashpass: bcrypt.hashSync(newPassword, 10) }));
     }
 
@@ -106,10 +105,10 @@ export class AuthenticationService {
             .then(() => resetKey);
     }
 
-    resetPassword(email: string, resetKey: string, newPassword: string) {
+    resetPassword(email: string, resetKey: string, newPassword: string, options: AuthenticationServiceOptions) {
         return this.findOne({ email, reset_key: resetKey })
             .then((account: UserAccount) => {
-                return this.ensureOutOfFailedAttemptsDelay(account)
+                return this.ensureAfterFailedAttemptsDelay(account, options)
                     .then(() => this.ensureValidResetKey(account))
                     .then(() => this.updateAccount(account.id, {
                         hashpass: bcrypt.hashSync(newPassword, 10),
@@ -126,7 +125,7 @@ export class AuthenticationService {
             hashpass: bcrypt.hashSync(password, 10),
             reset_key: shortid.generate(),
             failed_attempts: 0,
-            failed_attempt_at: 0,
+            max_failed_attempts_at: 0,
             verified_email_at: 0,
             changed_email_at: now,
             reset_expire_at: 0,
@@ -178,24 +177,30 @@ export class AuthenticationService {
         }
     }
 
-    private ensureSamePassword(account: UserAccount, password: string): Promise<UserAccount> {
-        if (!bcrypt.compareSync(password, account.hashpass)) {
-            return this.updateAccount(account.id, { failed_attempts: account.failed_attempts + 1 })
-                .then(() => Promise.reject(AuthenticationErrors.WRONG_PASSWORD));
+    private ensureAfterFailedAttemptsDelay(account: UserAccount, options: AuthenticationServiceOptions): Promise<UserAccount> {
+        const now = new Date().getTime();
+        const delayEnd = account.max_failed_attempts_at + options.maxFailedAttemptsDelay;
+
+        if (delayEnd > now) {
+            return Promise.reject(AuthenticationErrors.MAX_FAILED_ATTEMPTS_DELAY);
         } else {
-            return this.updateAccount(account.id, { failed_attempts: 0 })
-                .then(() => account);
+            return Promise.resolve(account);
         }
     }
 
-    private ensureOutOfFailedAttemptsDelay(account: UserAccount): Promise<UserAccount> {
-        const reachedMaxFailedAttempts = account.failed_attempts >= this.config.maxFailedAttempts;
-        const inFailedAttemptsDelay = new Date().getTime() < (account.failed_attempt_at + this.config.delayOnMaxFailedAttempts);
-
-        if (reachedMaxFailedAttempts && inFailedAttemptsDelay) {
-            return Promise.reject(AuthenticationErrors.FAILED_ATTEMPTS_DELAY);
+    private ensureSamePassword(account: UserAccount, password: string, options: AuthenticationServiceOptions): Promise<UserAccount> {
+        if (bcrypt.compareSync(password, account.hashpass)) {
+            return this.updateAccount(account.id, { failed_attempts: 0, max_failed_attempts_at: 0 }).then(() => account);
         } else {
-            return Promise.resolve(account);
+            const update: any = {
+                failed_attempts: account.failed_attempts + 1
+            };
+
+            if (update.failed_attempts >= options.maxFailedAttempts) {
+                update.max_failed_attempts_at = new Date().getTime();
+            }
+
+            return this.updateAccount(account.id, update).then(() => Promise.reject(AuthenticationErrors.WRONG_PASSWORD));
         }
     }
 
