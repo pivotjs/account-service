@@ -1,6 +1,6 @@
 import * as Knex from 'knex';
-import * as bcrypt from 'bcrypt';
-import { UserAccount, AuthenticationService, AuthenticationServiceOptions, AuthenticationErrors } from '..';
+import * as bcrypt from 'bcrypt-nodejs';
+import { UserAccount, AuthenticationService, AuthenticationServiceOptions, AuthenticationErrors } from '../src/index';
 
 const db = Knex({
     "debug": false,
@@ -19,7 +19,7 @@ function createUserAccount(n: number): UserAccount {
     return {
         id: `account-${n}`,
         email: `account-${n}@example.com`,
-        hashpass: bcrypt.hashSync(`pass-${n}`, 10),
+        hashpass: bcrypt.hashSync(`pass-${n}`),
         reset_key: `reset-${n}`,
         failed_attempts: 0,
         max_failed_attempts_at: 0,
@@ -111,8 +111,8 @@ describe('AuthenticationService', () => {
                                 expect(_accounts.length).toBe(1);
                                 expect(_accounts[0].id).toBe(account.id);
                                 expect(_accounts[0].email).toBe(account.email);
-                                expect(_accounts[0].verified_email_at).toBeGreaterThan(0);
-                                expect(_accounts[0].verified_email_at / (60 * 1000)).toBeCloseTo(new Date().getTime() / (60 * 1000));
+                                expect(_accounts[0].verified_email_at).toBeGreaterThan(new Date().getTime() - (1 * MINUTE));
+                                expect(_accounts[0].verified_email_at).toBeLessThan(new Date().getTime() + (1 * MINUTE));
                             });
                     })
                     .catch((err) => {
@@ -241,8 +241,9 @@ describe('AuthenticationService', () => {
                             .then((_accounts: UserAccount[]) => {
                                 expect(_accounts.length).toBe(1);
                                 expect(_accounts[0].email).toBe('account-11@example.com');
-                                expect(_accounts[0].changed_email_at / (60 * 1000)).toBeCloseTo(new Date().getTime() / (60 * 1000));
                                 expect(_accounts[0].changed_email_at).toBeGreaterThan(_accounts[0].verified_email_at);
+                                expect(_accounts[0].changed_email_at).toBeGreaterThan(new Date().getTime() - (1 * MINUTE));
+                                expect(_accounts[0].changed_email_at).toBeLessThan(new Date().getTime() + (1 * MINUTE));
                             });
                     })
                     .catch((err) => {
@@ -296,7 +297,7 @@ describe('AuthenticationService', () => {
     });
 
     describe('.generateResetKey', () => {
-        const future = new Date().getTime() + (60 * 1000);
+        const future = new Date().getTime() + (1 * MINUTE);
         let account;
 
         beforeEach(() => {
@@ -337,9 +338,9 @@ describe('AuthenticationService', () => {
 
         beforeEach(() => {
             account1 = createUserAccount(1);
-            account1.reset_expire_at = now - 10000;
+            account1.reset_expire_at = now - (1 * MINUTE);
             account2 = createUserAccount(2);
-            account2.reset_expire_at = now + 10000;
+            account2.reset_expire_at = now + (1 * MINUTE);
             return db('user_account').insert([account1, account2]);
         });
 

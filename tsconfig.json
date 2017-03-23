@@ -1,6 +1,9 @@
 {
     "compilerOptions": {
-        "types": ["node", "core-js", "jest"],
+        "types": [
+            "node",
+            "jest"
+        ],
         "module": "commonjs",
         "target": "es5",
         "noImplicitAny": false,
@@ -8,5 +11,10 @@
         "rootDir": "src",
         "outDir": "lib",
         "declaration": true
-    }
+    },
+    "exclude": [
+        "__tests__",
+        "lib",
+        "node_modules"
+    ]
 }

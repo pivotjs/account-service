@@ -5,8 +5,8 @@
   "main": "lib/index.js",
   "typings": "lib/index",
   "scripts": {
-    "test": "NODE_ENV=test jest --coverage",
-    "pretest": "tsc",
+    "postinstall": "cp -R node_modules/node-pre-gyp node_modules/sqlite3/node_modules/",
+    "test": "jest --coverage",
     "compile": "tsc",
     "prepublish": "npm run test"
   },
@@ -22,29 +22,39 @@
   },
   "homepage": "https://github.com/pivotjs/authentication-service#readme",
   "devDependencies": {
-    "@types/bcrypt": "^1.0.0",
-    "@types/bluebird": "^3.0.37",
-    "@types/core-js": "^0.9.35",
-    "@types/jest": "^18.1.1",
-    "@types/knex": "0.0.41",
-    "@types/node": "^7.0.5",
+    "@types/bcrypt-nodejs": "0.0.30",
+    "@types/bluebird": "^3.5.1",
+    "@types/core-js": "^0.9.37",
+    "@types/jest": "^19.2.2",
+    "@types/knex": "0.0.44",
+    "@types/node": "^7.0.10",
     "@types/shortid": "0.0.28",
+    "@types/underscore": "^1.8.0",
+    "node-pre-gyp": "^0.6.34",
+    "ts-jest": "^19.0.2",
     "typescript": "^2.2.1"
   },
   "dependencies": {
-    "bcrypt": "^1.0.2",
+    "bcrypt-nodejs": "0.0.3",
     "bluebird": "^3.5.0",
     "jest": "^19.0.2",
-    "knex": "^0.12.7",
-    "pg": "^6.1.4",
-    "shortid": "^2.2.6",
-    "sqlite3": "^3.1.8"
+    "knex": "^0.12.9",
+    "pg": "^6.1.5",
+    "shortid": "^2.2.8",
+    "sqlite3": "^3.1.8",
+    "underscore": "^1.8.3"
   },
   "jest": {
     "bail": true,
     "testEnvironment": "node",
-    "roots": [
-      "lib"
+    "transform": {
+      ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
+    },
+    "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
     ],
     "coverageDirectory": "coverage"
   }
