@@ -29,18 +29,18 @@
     "@types/node": "^7.0.10",
     "@types/shortid": "0.0.28",
     "@types/underscore": "^1.8.0",
+    "jest": "^19.0.2",
     "node-pre-gyp": "^0.6.34",
+    "sqlite3": "^3.1.8",
     "ts-jest": "^19.0.2",
     "typescript": "^2.2.1"
   },
   "dependencies": {
     "bcrypt": "^1.0.2",
     "bluebird": "^3.5.0",
-    "jest": "^19.0.2",
     "knex": "^0.12.9",
     "pg": "^6.1.5",
     "shortid": "^2.2.8",
-    "sqlite3": "^3.1.8",
     "underscore": "^1.8.3"
   },
   "jest": {
