@@ -1,7 +1,7 @@
 import * as _ from 'underscore'
 import * as Knex from 'knex';
 import * as Promise from 'bluebird';
-import * as bcrypt from 'bcrypt-nodejs';
+import * as bcrypt from 'bcrypt';
 import * as shortid from 'shortid';
 
 export const AuthenticationErrors = {
@@ -96,7 +96,7 @@ export class AuthenticationService {
     changePassword(id: string, password: string, newPassword: string, options: AuthenticationServiceOptions) {
         return this.findOne({ id })
             .then((account: UserAccount) => this.ensureSamePassword(account, password, options))
-            .then((account: UserAccount) => this.updateAccount(id, { hashpass: bcrypt.hashSync(newPassword) }));
+            .then((account: UserAccount) => this.updateAccount(id, { hashpass: bcrypt.hashSync(newPassword, 10) }));
     }
 
     generateResetKey(email: string, expireAt: number): Promise<string> {
@@ -112,7 +112,7 @@ export class AuthenticationService {
                 return this.ensureAfterFailedAttemptsDelay(account, options)
                     .then(() => this.ensureValidResetKey(account))
                     .then(() => this.updateAccount(account.id, {
-                        hashpass: bcrypt.hashSync(newPassword),
+                        hashpass: bcrypt.hashSync(newPassword, 10),
                         failed_attempts: 0,
                         max_failed_attempts_at: 0,
                     }));
@@ -124,7 +124,7 @@ export class AuthenticationService {
         const account: UserAccount = {
             id: shortid.generate(),
             email,
-            hashpass: bcrypt.hashSync(password),
+            hashpass: bcrypt.hashSync(password, 10),
             reset_key: shortid.generate(),
             failed_attempts: 0,
             max_failed_attempts_at: 0,

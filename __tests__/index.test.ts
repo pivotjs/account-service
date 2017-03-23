@@ -1,5 +1,5 @@
 import * as Knex from 'knex';
-import * as bcrypt from 'bcrypt-nodejs';
+import * as bcrypt from 'bcrypt';
 import { UserAccount, AuthenticationService, AuthenticationServiceOptions, AuthenticationErrors } from '../src/index';
 
 const db = Knex({
@@ -19,7 +19,7 @@ function createUserAccount(n: number): UserAccount {
     return {
         id: `account-${n}`,
         email: `account-${n}@example.com`,
-        hashpass: bcrypt.hashSync(`pass-${n}`),
+        hashpass: bcrypt.hashSync(`pass-${n}`, 10),
         reset_key: `reset-${n}`,
         failed_attempts: 0,
         max_failed_attempts_at: 0,
