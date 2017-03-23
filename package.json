@@ -1,6 +1,6 @@
 {
   "name": "pivot-authentication-service",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "User authentication service",
   "main": "lib/index.js",
   "typings": "lib/index",
